@@ -25,3 +25,9 @@ demo.py → End-to-end real-time inference aligned with training pipeline.
 
 SIH 2025 Achievement
 Presented at Smart India Hackathon 2025, ZapShield ranked 130th out of 600+ teams nationwide, recognizing our system's novelty, robustness, and real-world applicability.
+![1759211072787](https://github.com/user-attachments/assets/0972cdc4-50f5-47f3-acf6-cd91c7bd7644)
+![1759211072361](https://github.com/user-attachments/assets/cf372b26-0dd0-44c0-8790-c5e0662e228d)
+![1759211072360](https://github.com/user-attachments/assets/77a7fbc4-7465-4a27-a469-53c67cfe3f32)
+
+
+
