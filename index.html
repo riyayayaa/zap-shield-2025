@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ZapShield — Dashboard</title>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root{
+      --bg-dark: #021a4a;
+      --bg-mid: #06306a;
+      --accent: #00f0ff;
+      --card: #ffffff;
+      --muted:#6b7280;
+      --danger: #e11d48;
+      --green:#10b981;
+      --glass: rgba(255,255,255,0.04);
+      --radius:14px;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,'Segoe UI',Roboto,"Helvetica Neue",Arial;}
+    body{background: linear-gradient(90deg,var(--bg-dark) 0%, #062B56 50%, var(--bg-dark) 100%); color:#0b1220;}
+
+    /* Intro */
+    .intro {
+      height:100vh; width:100%;
+      display:flex; align-items:center; justify-content:center;
+      color:#fff; position:fixed; inset:0; z-index:9999;
+      background: linear-gradient(90deg, #021a4a 0%, #06306a 50%, #021a4a 100%);
+      overflow:hidden;
+    }
+    .bolt-wrap { text-align:center; }
+    .zap-title { font-size:84px; font-weight:800; letter-spacing:6px; margin-bottom:24px; }
+    /* moving current lines */
+    .flow-line { width:120%; height:3px; margin:10px auto; background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(0,255,255,0.9) 50%, rgba(255,255,255,0) 100%); box-shadow:0 0 10px rgba(0,255,255,0.2); animation: flow 1s linear infinite; }
+    .flow-line.slow { animation-duration:1.6s; }
+    .flow-line.fast { animation-duration:0.75s; }
+    @keyframes flow { from {transform:translateX(-100%);} to {transform:translateX(100%);} }
+
+    /* App layout */
+    .app {
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:20px;
+      padding:28px;
+      max-width:1300px;margin:36px auto;
+    }
+    .header { grid-column: 1 / -1; margin-bottom:6px; color:white; }
+    .title-main { font-size:20px; font-weight:700; color:#fff; margin:0; }
+    .subtitle { font-size:13px; color:#cfe8f3; margin:4px 0 12px 0; }
+
+    .card {
+      background: rgba(255,255,255,0.98);
+      border-radius: var(--radius);
+      padding:18px;
+      box-shadow: 0 6px 18px rgba(2,16,49,0.08);
+    }
+    .left-panel .card { margin-bottom:18px; }
+
+    label.small{ display:block; font-size:12px; color:var(--muted); margin-bottom:6px;}
+    .row { margin-bottom:12px; }
+    .controls { display:flex; gap:12px; align-items:center; justify-content:space-between; }
+    .sl { width:100%; }
+
+    /* Prediction card layout */
+    .pred-grid { display:flex; gap:16px; flex-direction:column; }
+    .pred-top { display:flex; justify-content:space-between; align-items:center; }
+    .big-thing { font-size:20px; font-weight:700; color:#0b1220; }
+    .chip { padding:6px 10px; border-radius:999px; font-size:12px; background:#f3f4f6; color:#111827; }
+
+    .small-muted{ color:var(--muted); font-size:13px; }
+
+    /* topology */
+    .topology { display:flex; gap:18px; align-items:center; justify-content:center; padding:10px; }
+    .line-box { width:120px; height:80px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:700; color:white; box-shadow:0 4px 12px rgba(2,16,49,0.06); }
+    .line-green { background: linear-gradient(180deg, #10b981, #059669); }
+    .line-red { background: linear-gradient(180deg, #ef4444, #dc2626); }
+
+    /* table */
+    table { width:100%; border-collapse:collapse; }
+    th,td { text-align:left; padding:8px; font-size:13px; color:#0b1220; border-bottom:1px solid #eef2ff; }
+    th { color:var(--muted); font-weight:600; font-size:12px; }
+
+    /* alert modal */
+    .alert-modal { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:2000; }
+    .alert-box { background:white; border-radius:12px; padding:20px 22px; width:420px; box-shadow:0 20px 40px rgba(2,16,49,0.25); border-left:6px solid var(--danger); }
+    .alert-box h3 { margin:0 0 8px 0; color:#111827; }
+    .alert-box p { margin:0 0 14px 0; color:#374151; }
+    .btn { padding:8px 12px; border-radius:8px; cursor:pointer; border:0; font-weight:600; }
+    .btn-danger { background:var(--danger); color:white; }
+    .btn-muted { background:#f3f4f6; color:#111827; margin-left:8px; }
+
+    /* footer small */
+    .foot-note { font-size:12px; color:#334155; margin-top:6px; }
+
+    /* responsive */
+    @media (max-width:980px){
+      .app{ grid-template-columns: 1fr; padding:12px; }
+      .intro .zap-title{ font-size:48px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Intro -->
+  <div id="intro" class="intro" aria-hidden="false">
+    <div class="bolt-wrap">
+      <div class="zap-title">ZapShield</div>
+      <div class="flow-line fast"></div>
+      <div class="flow-line"></div>
+      <div class="flow-line slow"></div>
+    </div>
+  </div>
+
+  <!-- App -->
+  <div id="app" style="display:none;">
+    <div class="app">
+      <div class="header" style="grid-column:1/-1">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div class="title-main">Smart Broken LT Conductor Detection & Isolation — <strong style="color:#7fe7ff">ZapShield</strong></div>
+            <div class="subtitle">Real-Time Analytics and FLISR Automation Dashboard</div>
+          </div>
+          <div style="text-align:right;color:#cfe8f3;font-size:13px">Status: <span id="status">Idle</span></div>
+        </div>
+      </div>
+
+      <!-- Left column -->
+      <div class="left-panel">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-weight:700">System Configuration</div>
+            <div><label style="font-size:13px;color:#475569">Multi-Line <input id="multiToggle" type="checkbox" checked></label></div>
+          </div>
+          <hr style="margin:12px 0 14px 0;border:none;border-top:1px solid rgba(2,16,49,0.06)">
+
+          <div style="font-weight:700;margin-bottom:10px">Line Parameters</div>
+
+          <!-- Line 1 -->
+          <div class="row">
+            <label class="small">L1 — Current (A): <span id="l1curVal">610</span></label>
+            <input type="range" id="l1cur" min="0" max="1200" value="610" class="sl">
+            <label class="small">L1 — Voltage (kV): <span id="l1voltVal">11.5</span></label>
+            <input type="range" id="l1volt" min="0" max="30" step="0.1" value="11.5" class="sl">
+          </div>
+
+          <!-- Line 2 -->
+          <div class="row">
+            <label class="small">L2 — Current (A): <span id="l2curVal">920</span></label>
+            <input type="range" id="l2cur" min="0" max="1200" value="920" class="sl">
+            <label class="small">L2 — Voltage (kV): <span id="l2voltVal">21.5</span></label>
+            <input type="range" id="l2volt" min="0" max="30" step="0.1" value="21.5" class="sl">
+          </div>
+
+          <!-- Line 3 -->
+          <div class="row">
+            <label class="small">L3 — Current (A): <span id="l3curVal">740</span></label>
+            <input type="range" id="l3cur" min="0" max="1200" value="740" class="sl">
+            <label class="small">L3 — Voltage (kV): <span id="l3voltVal">11.8</span></label>
+            <input type="range" id="l3volt" min="0" max="30" step="0.1" value="11.8" class="sl">
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button id="runBtn" class="btn" style="background:#0ea5e9;color:white;border-radius:8px">Run Analysis</button>
+            <button id="autoRunBtn" class="btn btn-muted" style="border-radius:8px">Auto Run: <span id="autorunState">OFF</span></button>
+          </div>
+          <div class="foot-note">Adjust sliders to change real-time values. Click Run Analysis to evaluate with the built-in ML heuristic.</div>
+        </div>
+      </div>
+
+      <!-- Right column -->
+      <div>
+        <div class="card">
+          <div class="pred-top">
+            <div>
+              <div style="font-size:14px;color:#6b7280">ML Prediction Results</div>
+              <div class="big-thing" id="predFault">No analysis yet</div>
+              <div style="margin-top:8px">
+                <span class="chip" id="predAction">Action: —</span>
+                <span class="chip" id="predLine">Isolate: —</span>
+                <span class="chip" id="predPreserved">Preserve: —</span>
+                <span class="chip" id="predConf">Confidence: —</span>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <button id="applySuggestion" class="btn" style="background:#0ea5e9;color:white;border-radius:8px">Apply Suggestion</button>
+            </div>
+          </div>
+
+          <hr style="margin:12px 0 14px 0;border:none;border-top:1px solid rgba(2,16,49,0.06)">
+
+          <div style="display:flex;gap:16px;align-items:flex-start">
+            <!-- Left: Chart & Table -->
+            <div style="flex:1 1 60%;">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-weight:700">Real-Time Current Analysis</div>
+                <div class="small-muted">Last 60 samples</div>
+              </div>
+              <canvas id="currentChart" style="height:220px;width:100%;"></canvas>
+
+              <div style="margin-top:10px">
+                <table>
+                  <thead><tr><th>Line</th><th>Current (A)</th><th>Voltage (kV)</th></tr></thead>
+                  <tbody>
+                    <tr><td>L1</td><td id="tblL1">610</td><td id="tblV1">11.5</td></tr>
+                    <tr><td>L2</td><td id="tblL2">920</td><td id="tblV2">21.5</td></tr>
+                    <tr><td>L3</td><td id="tblL3">740</td><td id="tblV3">11.8</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Right: Topology + slider -->
+            <div style="flex:0 0 320px">
+              <div style="font-weight:700;margin-bottom:8px">System Topology</div>
+              <div class="topology" id="topo">
+                <div id="box1" class="line-box line-green">L1</div>
+                <div id="box2" class="line-box line-green">L2</div>
+                <div id="box3" class="line-box line-green">L3</div>
+              </div>
+
+              <div style="margin-top:12px">
+                <label class="small">Topology Slider (0 = none isolated, 1 = L1, 2 = L2, 3 = L3): <strong id="topoLabel">0</strong></label>
+                <input type="range" id="topoSlider" min="0" max="3" value="0" class="sl">
+                <div style="margin-top:8px" class="small-muted">Slide to view which line would be isolated (red). Use Apply Suggestion to move slider to ML-suggested line.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:700">Logs & Notes</div>
+            <div class="small-muted">Latest analysis results appear here.</div>
+          </div>
+          <div class="small-muted">Version: 1.0 — Client-only demo</div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Alert Modal -->
+  <div id="alertModal" style="display:none;" class="alert-modal" role="dialog" aria-modal="true">
+    <div class="alert-box">
+      <h3 id="alertTitle">Severe Fault Detected</h3>
+      <p id="alertBody">Open Phase on L2 — recommended: isolate the line and cut supply.</p>
+      <div style="text-align:right">
+        <button id="dismissAlert" class="btn btn-muted">Dismiss</button>
+        <button id="ackAlert" class="btn btn-danger">Acknowledge & Isolate</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ---- Utility elements ----
+  const intro = document.getElementById('intro');
+  const app = document.getElementById('app');
+  const runBtn = document.getElementById('runBtn');
+  const autoRunBtn = document.getElementById('autoRunBtn');
+  const autorunStateSpan = document.getElementById('autorunState');
+  const statusEl = document.getElementById('status');
+
+  // sliders
+  const l1cur = document.getElementById('l1cur'), l2cur = document.getElementById('l2cur'), l3cur = document.getElementById('l3cur');
+  const l1volt = document.getElementById('l1volt'), l2volt = document.getElementById('l2volt'), l3volt = document.getElementById('l3volt');
+  const l1curVal = document.getElementById('l1curVal'), l2curVal = document.getElementById('l2curVal'), l3curVal = document.getElementById('l3curVal');
+  const l1voltVal = document.getElementById('l1voltVal'), l2voltVal = document.getElementById('l2voltVal'), l3voltVal = document.getElementById('l3voltVal');
+
+  // table cells
+  const tblL1 = document.getElementById('tblL1'), tblL2 = document.getElementById('tblL2'), tblL3 = document.getElementById('tblL3');
+  const tblV1 = document.getElementById('tblV1'), tblV2 = document.getElementById('tblV2'), tblV3 = document.getElementById('tblV3');
+
+  // prediction displays
+  const predFault = document.getElementById('predFault'), predAction = document.getElementById('predAction'), predLine = document.getElementById('predLine'), predPreserved = document.getElementById('predPreserved'), predConf = document.getElementById('predConf');
+  const applySuggestion = document.getElementById('applySuggestion');
+
+  // topology
+  const box1 = document.getElementById('box1'), box2 = document.getElementById('box2'), box3 = document.getElementById('box3');
+  const topoSlider = document.getElementById('topoSlider'), topoLabel = document.getElementById('topoLabel');
+
+  // alert modal
+  const alertModal = document.getElementById('alertModal'), alertTitle = document.getElementById('alertTitle'), alertBody = document.getElementById('alertBody');
+  const dismissAlert = document.getElementById('dismissAlert'), ackAlert = document.getElementById('ackAlert');
+
+  // autorun
+  let autorun = false, autorunInterval = null;
+
+  // chart dataset (rolling)
+  const maxSamples = 60;
+  let labels = Array.from({length:maxSamples}, (_,i)=> i - maxSamples + 1);
+  const data1 = Array(maxSamples).fill(null);
+  const data2 = Array(maxSamples).fill(null);
+  const data3 = Array(maxSamples).fill(null);
+
+  const ctx = document.getElementById('currentChart').getContext('2d');
+  const currentChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        { label:'L1', data: data1, fill:false, tension:0.2, borderWidth:2 },
+        { label:'L2', data: data2, fill:false, tension:0.2, borderWidth:2 },
+        { label:'L3', data: data3, fill:false, tension:0.2, borderWidth:2 }
+      ]
+    },
+    options: {
+      animation:false,
+      responsive:true,
+      plugins:{ legend:{position:'bottom'} },
+      scales: {
+        x:{ display:false },
+        y:{ beginAtZero:true, suggestedMax:1200 }
+      }
+    }
+  });
+
+  // --- Hide intro after 4s and show app ---
+  setTimeout(() => {
+    intro.style.display = 'none';
+    app.style.display = 'block';
+    // Run initial analysis after showing the app
+    setTimeout(() => runAnalysis(), 500);
+  }, 4000);
+
+  // --- slider display updates ---
+  function updateSliderDisplays(){
+    l1curVal.textContent = l1cur.value;
+    l2curVal.textContent = l2cur.value;
+    l3curVal.textContent = l3cur.value;
+    l1voltVal.textContent = Number(l1volt.value).toFixed(1);
+    l2voltVal.textContent = Number(l2volt.value).toFixed(1);
+    l3voltVal.textContent = Number(l3volt.value).toFixed(1);
+
+    tblL1.textContent = l1cur.value;
+    tblL2.textContent = l2cur.value;
+    tblL3.textContent = l3cur.value;
+    tblV1.textContent = Number(l1volt.value).toFixed(1);
+    tblV2.textContent = Number(l2volt.value).toFixed(1);
+    tblV3.textContent = Number(l3volt.value).toFixed(1);
+  }
+
+  // attach slider events
+  [l1cur,l2cur,l3cur,l1volt,l2volt,l3volt].forEach(el=>{
+    el.addEventListener('input', updateSliderDisplays);
+  });
+
+  // initial
+  updateSliderDisplays();
+
+  // --- Simple ML heuristic (client-side) ---
+  // Returns {fault, action, isolateLine(1..3 or 0 none), preserved:[], confidence}
+  function simpleML(currents, voltages){
+    // currents: [n1,n2,n3]
+    const avg = (currents[0]+currents[1]+currents[2]) / 3;
+    const median = [...currents].sort((a,b)=>a-b)[1];
+    const std = Math.sqrt(currents.reduce((s,x)=>s+(x-avg)*(x-avg),0)/3);
+    const imbalance = std / (avg || 1);
+    // open phase detection: a very small current relative to others
+    for(let i=0;i<3;i++){
+      if (currents[i] < 0.25 * avg && currents[i] < 400) {
+        return {
+          fault: 'Open Phase Fault',
+          action: 'Isolate line and cut supply',
+          isolateLine: i+1,
+          preserved: [1,2,3].filter(x=>x!==i+1),
+          confidence: Math.min(98, Math.round((0.6 + (1 - currents[i]/(avg+1))*0.4)*100))
+        };
+      }
+    }
+    // short-circuit detection: one very high current
+    for(let i=0;i<3;i++){
+      if (currents[i] > 1.6 * median && currents[i] > 800) {
+        return {
+          fault: 'Short Circuit',
+          action: 'Immediate Supply Cut & Isolate',
+          isolateLine: i+1,
+          preserved: [1,2,3].filter(x=>x!==i+1),
+          confidence: Math.min(99, Math.round((0.7 + (currents[i]/(median+1)-1)*0.3)*100))
+        };
+      }
+    }
+    // severe imbalance
+    if (imbalance > 0.25) {
+      // isolate the highest or suggest monitoring
+      const maxIdx = currents.indexOf(Math.max(...currents));
+      return {
+        fault: 'Unbalanced Load',
+        action: 'Recommend isolate highest loading line or monitor closely',
+        isolateLine: maxIdx+1,
+        preserved: [1,2,3].filter(x=>x!==maxIdx+1),
+        confidence: Math.min(92, Math.round( (0.5 + Math.min(0.4, imbalance))*100))
+      };
+    }
+    // Normal
+    return {
+      fault: 'Normal',
+      action: 'No action required',
+      isolateLine: 0,
+      preserved: [1,2,3],
+      confidence: Math.round((0.5 + (1 - imbalance)*0.4)*100)
+    };
+  }
+
+  // --- update topology display based on slider value (0..3) ---
+  function updateTopology(val){
+    topoLabel.textContent = val;
+    [box1,box2,box3].forEach(b => {
+      b.classList.remove('line-red'); b.classList.remove('line-green');
+    });
+    if (val == 0) {
+      box1.classList.add('line-green');
+      box2.classList.add('line-green');
+      box3.classList.add('line-green');
+    } else if (val == 1) {
+      box1.classList.add('line-red');
+      box2.classList.add('line-green');
+      box3.classList.add('line-green');
+    } else if (val == 2) {
+      box1.classList.add('line-green');
+      box2.classList.add('line-red');
+      box3.classList.add('line-green');
+    } else if (val == 3) {
+      box1.classList.add('line-green');
+      box2.classList.add('line-green');
+      box3.classList.add('line-red');
+    }
+  }
+
+  // fix potential bug: some browsers require classList used as below
+  function updateTopologySafe(val){
+    topoLabel.textContent = val;
+    box1.className = 'line-box';
+    box2.className = 'line-box';
+    box3.className = 'line-box';
+    if (val == 0){ box1.classList.add('line-green'); box2.classList.add('line-green'); box3.classList.add('line-green'); }
+    if (val == 1){ box1.classList.add('line-red'); box2.classList.add('line-green'); box3.classList.add('line-green'); }
+    if (val == 2){ box1.classList.add('line-green'); box2.classList.add('line-red'); box3.classList.add('line-green'); }
+    if (val == 3){ box1.classList.add('line-green'); box2.classList.add('line-green'); box3.classList.add('line-red'); }
+  }
+
+  // attach topo slider
+  topoSlider.addEventListener('input', ()=> updateTopologySafe(Number(topoSlider.value)));
+
+  // --- apply ML suggestion (set slider to isolateLine) ---
+  let lastSuggestion = 0;
+  applySuggestion.addEventListener('click', ()=>{
+    topoSlider.value = lastSuggestion;
+    updateTopologySafe(Number(topoSlider.value));
+  });
+
+  // --- Alert modal control ---
+  function showAlert(title, body){
+    alertTitle.textContent = title;
+    alertBody.textContent = body;
+    alertModal.style.display = 'flex';
+  }
+  dismissAlert.addEventListener('click', ()=> alertModal.style.display = 'none');
+  ackAlert.addEventListener('click', ()=>{
+    alertModal.style.display = 'none';
+    // when ack, apply suggestion (isolate)
+    topoSlider.value = lastSuggestion;
+    updateTopologySafe(Number(topoSlider.value));
+    statusEl.textContent = 'Isolation applied';
+  });
+
+  // --- Run one analysis (reads sliders, calls API, updates UI) ---
+  async function runAnalysis(){
+    try {
+      statusEl.textContent = 'Running...';
+      const currents = [Number(l1cur.value), Number(l2cur.value), Number(l3cur.value)];
+      const volts = [Number(l1volt.value), Number(l2volt.value), Number(l3volt.value)];
+      
+      // Update prediction displays to show analysis in progress
+      predFault.textContent = 'Analyzing...';
+      predAction.textContent = 'Action: Computing';
+      predLine.textContent = 'Isolate: —';
+      predPreserved.textContent = 'Preserve: —';
+      predConf.textContent = 'Confidence: —';
+      
+      // push to chart arrays with a small jitter to simulate streaming
+      const jitter = ()=> (Math.random()-0.5)*6;
+      data1.push(currents[0] + jitter()); if (data1.length>maxSamples) data1.shift();
+      data2.push(currents[1] + jitter()); if (data2.length>maxSamples) data2.shift();
+      data3.push(currents[2] + jitter()); if (data3.length>maxSamples) data3.shift();
+
+      currentChart.update();
+
+      // update table
+      updateSliderDisplays();
+
+      // Call Flask API endpoint
+      const response = await fetch('http://127.0.0.1:5000/predict', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          currents: currents,
+          voltages: volts
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Network response was not ok: ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      // Convert API response to match UI expectations
+      if (!result.fault) {
+        throw new Error('Invalid response from server');
+      }
+
+      const res = {
+        fault: result.fault,
+        action: result.fault === 'Normal' ? 'No action required' : 'Isolate line and monitor',
+        isolateLine: result.line === 'Normal' ? 0 : parseInt(result.line.replace('L', '')),
+        preserved: [1,2,3].filter(x => x !== (result.line === 'Normal' ? 0 : parseInt(result.line.replace('L', '')))),
+        confidence: Math.round(parseFloat(result.xgb_composite) * 100)
+      };
+
+    // update UI with clear status indicators
+    predFault.textContent = res.fault || 'No analysis yet';
+    predAction.textContent = 'Action: ' + (res.action || '—');
+    predLine.textContent = 'Isolate: ' + (res.isolateLine === 0 ? '—' : 'L'+res.isolateLine);
+    predPreserved.textContent = 'Preserve: ' + (res.preserved.length ? res.preserved.map(x=>'L'+x).join(', ') : '—');
+    predConf.textContent = 'Confidence: ' + (res.confidence ? res.confidence + '%' : '—');
+    lastSuggestion = res.isolateLine;
+
+    // highlight suggested topology but not force it. The user can apply suggestion
+    // show a faint indicator by briefly flashing the suggested box
+    if (res.isolateLine !== 0){
+      // flash the box
+      let box = (res.isolateLine===1?box1: res.isolateLine===2?box2:box3);
+      box.animate([{boxShadow:'0 4px 12px rgba(225,29,72,0.0)'},{boxShadow:'0 12px 24px rgba(225,29,72,0.30)'}],{ duration:600, iterations:1});
+    }
+
+    // show alert for severe faults
+    if (res.fault === 'Short Circuit' || res.fault === 'Open Phase Fault') {
+      showAlert('Severe Fault: ' + res.fault, `${res.fault} detected on L${res.isolateLine}. ${res.action}. Confidence: ${res.confidence}%`);
+    }
+
+    // update status
+    statusEl.textContent = 'Last run: ' + new Date().toLocaleTimeString();
+
+    return res;
+    } catch (error) {
+      throw error;  // Re-throw the error to be caught by the event listener
+    }
+  }
+
+  // run button
+  runBtn.addEventListener('click', () => {
+    runAnalysis()
+      .then(result => {
+        console.log('Analysis completed successfully');
+        return result;
+      })
+      .catch(error => {
+        console.error('Analysis failed:', error);
+        statusEl.textContent = 'Error: ' + error.message;
+        showAlert('Analysis Error', 'Failed to run analysis. Please try again.');
+      });
+  });
+
+  // auto run toggle
+  autoRunBtn.addEventListener('click', ()=>{
+    autorun = !autorun;
+    if (autorun){
+      // Initial run immediately when turning on auto-run
+      runAnalysis().catch(console.error);
+      autorunInterval = setInterval(() => {
+        runAnalysis().catch(err => {
+          console.error('Auto-run analysis failed:', err);
+          // If there's an error, show it in the status
+          statusEl.textContent = 'Error: ' + err.message;
+        });
+      }, 1000);
+      autorunStateSpan.textContent = 'ON';
+      autoRunBtn.style.background = '#efefef';
+      statusEl.textContent = 'Auto-run ON';
+    } else {
+      clearInterval(autorunInterval);
+      autorunInterval = null;
+      autorunStateSpan.textContent = 'OFF';
+      autoRunBtn.style.background = '';
+      statusEl.textContent = 'Auto-run OFF';
+    }
+  });
+
+  // run a first analysis to populate visuals
+  runAnalysis();
+
+  // ensure topology initial state
+  updateTopologySafe(0);
+
+</script>
+
+</body>
+</html>
